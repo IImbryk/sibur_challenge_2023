@@ -2,14 +2,16 @@ import pathlib
 import pandas as pd
 import torch
 import torch.nn as nn
-from torch.nn import functional as F
 from torch.autograd import Variable
-import numpy as np
+import pickle
 
 DATA_DIR = pathlib.Path(".")
 MODEL_GAS_1 = pathlib.Path(__file__).parent.joinpath("nn_gas1.pt")
 MODEL_GAS_21 = pathlib.Path(__file__).parent.joinpath("nn_gas2_part1.pt")
 MODEL_GAS_22 = pathlib.Path(__file__).parent.joinpath("nn_gas2_part2.pt")
+
+scaler_x = pickle.load(open('scaler_x.pkl', 'rb'))
+scaler_y = pickle.load(open('scaler_y.pkl', 'rb'))
 
 
 class NetGas(nn.Module):
@@ -21,23 +23,23 @@ class NetGas(nn.Module):
         self.fc3 = nn.Linear(32, 2)
 
     def forward(self, x):
-        x = F.sigmoid(self.fc1(x))
-        x = F.sigmoid(self.fc2(x))
-        x = F.sigmoid(self.fc21(x))
+        x = torch.sigmoid(self.fc1(x))
+        x = torch.sigmoid(self.fc2(x))
+        x = torch.sigmoid(self.fc21(x))
         x = self.fc3(x)
         return x
 
 
-class Net2(nn.Module):
+class NetGasEasy(nn.Module):
     def __init__(self, input_size=24):
-        super(Net2, self).__init__()
+        super(NetGasEasy, self).__init__()
         self.fc1 = nn.Linear(input_size, 64)
         self.fc2 = nn.Linear(64, 32)
         self.fc3 = nn.Linear(32, 2)
 
     def forward(self, x):
-        x = F.sigmoid(self.fc1(x))
-        x = F.sigmoid(self.fc2(x))
+        x = torch.sigmoid(self.fc1(x))
+        x = torch.sigmoid(self.fc2(x))
         x = self.fc3(x)
         return x
 
@@ -60,71 +62,77 @@ def predict(df: pd.DataFrame) -> pd.DataFrame:
     # df_predict['feature13_exp'] = np.log(df_predict['feature13'])
 
     df_gas1 = df_predict[df_predict['feature4'] == 'gas1']
-    df_gas2_part1 = df_predict[(df_predict['feature4'] == 'gas2') & (df_predict['feature8'] >= -35)]
-    df_gas2_part2 = df_predict[(df_predict['feature4'] == 'gas2') & (df_predict['feature8'] < -35)]
+    df_gas2_part1 = df_predict[(df_predict['feature4'] == 'gas2') & (df_predict['feature8'] <= -35)]
+    df_gas2_part2 = df_predict[(df_predict['feature4'] == 'gas2') & (df_predict['feature8'] > -35)]
 
     df_predict['target0'] = 45
     df_predict['target1'] = 22
 
-
-
     features2_part1 = ['feature0',
- 'feature1',
- 'feature2',
- 'feature3',
- 'feature5',
- 'feature6',
- 'feature7',
- 'feature8',
- 'feature9',
- 'feature10',
- 'feature11',
- 'feature12',
- 'feature13',
- 'feature14',
- 'feature15',
- 'feature16',
- 'feature17',
- 'feature18',
- 'feature20',
- 'feature22']
+                       'feature1',
+                       'feature2',
+                       'feature3',
+                       'feature5',
+                       'feature6',
+                       'feature7',
+                       'feature9',
+                       'feature10',
+                       'feature11',
+                       'feature12',
+                       'feature13',
+                       'feature14',
+                       'feature15',
+                       'feature16',
+                       'feature17',
+                       'feature18',
+                       'feature19',
+                       'feature20',
+                       'feature22',
+                       'feature23']
 
     features2_part2 = ['feature0',
-                'feature1',
-                'feature2',
-                'feature3',
-                'feature5',
-                'feature6',
-                'feature7',
-                'feature9',
-                'feature10',
-                'feature11',
-                'feature12',
-                'feature13',
-                'feature14',
-                'feature15',
-                'feature16',
-                'feature17',
-                'feature18',
-                'feature20',
-                'feature22']
+                       'feature1',
+                       'feature2',
+                       'feature3',
+                       'feature5',
+                       'feature6',
+                       'feature7',
+                       'feature8',
+                       'feature9',
+                       'feature10',
+                       'feature11',
+                       'feature12',
+                       'feature13',
+                       'feature14',
+                       'feature15',
+                       'feature16',
+                       'feature17',
+                       'feature18',
+                       'feature19',
+                       'feature20',
+                       'feature22',
+                       'feature23',
+                       'feature24']
 
     features1 = ['feature0',
-     'feature2',
-     'feature3',
-     'feature6',
-     'feature9',
-     'feature10',
-     'feature11',
-     'feature12',
-     'feature13',
-     'feature14',
-     'feature15',
-     'feature16',
-     'feature18',
-     'feature19',
-     'feature20',
-     'feature21']
+                 'feature2',
+                 'feature3',
+                 'feature6',
+                 'feature9',
+                 'feature10',
+                 'feature11',
+                 'feature12',
+                 'feature13',
+                 'feature14',
+                 'feature15',
+                 'feature16',
+                 'feature17',
+                 'feature18',
+                 'feature19',
+                 'feature20',
+                 'feature21',
+                 'feature22',
+                 'feature23']
 
     model = NetGas(input_size=len(features1))
     model.load_state_dict(torch.load(MODEL_GAS_1))
@@ -134,27 +142,29 @@ def predict(df: pd.DataFrame) -> pd.DataFrame:
     model2_part1.load_state_dict(torch.load(MODEL_GAS_21))
     model2_part1.eval()
 
-    model2_part2 = Net2(input_size=len(features2_part2))
+    model2_part2 = NetGasEasy(input_size=len(features2_part2))
     model2_part2.load_state_dict(torch.load(MODEL_GAS_22))
     model2_part2.eval()
 
     x_test = df_gas1.loc[:, features1]
     x_test21 = df_gas2_part1.loc[:, features2_part1]
     x_test22 = df_gas2_part2.loc[:, features2_part2]
+    x_test22 = scaler_x.transform(x_test22)
 
     x_test_var = Variable(torch.FloatTensor(x_test.values), requires_grad=False)
     x_test_var21 = Variable(torch.FloatTensor(x_test21.values), requires_grad=False)
-    x_test_var22 = Variable(torch.FloatTensor(x_test22.values), requires_grad=False)
+    x_test_var22 = Variable(torch.FloatTensor(x_test22), requires_grad=False)
 
     with torch.no_grad():
         y_predict = model(x_test_var)
         y_predict21 = model2_part1(x_test_var21)
         y_predict22 = model2_part2(x_test_var22)
 
+    y_predict22 = scaler_y.inverse_transform(y_predict22)
     df_predict = pd.DataFrame(index=df.index)
 
     df_predict.loc[df_gas1.index, ['target0', 'target1']] = y_predict.numpy()
     df_predict.loc[df_gas2_part1.index, ['target0', 'target1']] = y_predict21.numpy()
-    df_predict.loc[df_gas2_part2.index, ['target0', 'target1']] = y_predict22.numpy()
+    df_predict.loc[df_gas2_part2.index, ['target0', 'target1']] = y_predict22
 
     return df_predict
